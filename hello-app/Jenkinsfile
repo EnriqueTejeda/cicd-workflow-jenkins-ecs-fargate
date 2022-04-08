@@ -1,0 +1,62 @@
+#!groovy
+pipeline {
+    agent any
+    options { skipDefaultCheckout true }
+    stages {
+        stage('Checkout'){
+            steps {
+                checkout scm
+            }
+        }
+        stage('Build') {
+            environment {
+                DOCKER_IMAGE = 'etejeda/hello-app-golang'
+            }
+            steps {
+                script {
+                        def customImage = docker.build("${DOCKER_IMAGE}", " -f hello-app/Dockerfile .")
+                        docker.withRegistry("", 'dockerHub') {
+                            customImage.push("${BUILD_NUMBER}")
+                        }
+                }
+            }
+        }
+        stage('Test'){
+            steps {
+                echo 'Unit Tests'
+            }
+        }
+        stage('Deploy to ECS / Fargate'){
+            environment {
+                AWS_REGION = 'us-east-1'
+                AWS_ECS_CLUSTER = 'dev-test-ecs'
+                AWS_ECS_SERVICE = 'dev-test-ecs'
+                AWS_ECS_FAMILY = 'dev-test-ecs'
+                AWS_ECS_ARN_EXECUTION_ROLE = 'arn:aws:iam::<ACCOUNT-ID>:role/dev-test-ecs-exec'
+                AWS_ECS_ARN_TASK_ROLE = 'arn:aws:iam::<ACCOUNT-ID>:role/dev-test-ecs-task'
+                AWS_ECS_TASK_CPU = 256
+                AWS_ECS_TASK_MEMORY = 512
+            }
+            steps {
+                script {
+                    sh "sed -e \"s;%BUILD_NUMBER%;${BUILD_NUMBER};g\" hello-app/task-def.json > hello-app/task-def-v_${BUILD_NUMBER}.json"
+                    sh "aws ecs register-task-definition " +
+                        "--family ${AWS_ECS_FAMILY} " +
+                        "--region=${AWS_REGION} " +
+                        "--requires-compatibilities=\"FARGATE\" " +
+                        "--network-mode awsvpc " +
+                        "--execution-role-arn ${AWS_ECS_ARN_EXECUTION_ROLE} " +
+                        "--task-role-arn ${AWS_ECS_ARN_TASK_ROLE} " +
+                        "--cpu ${AWS_ECS_TASK_CPU} --memory ${AWS_ECS_TASK_MEMORY} " +
+                        "--cli-input-json file://hello-app/task-def-v_${BUILD_NUMBER}.json"
+                    sh "aws ecs update-service " +
+                        "--cluster ${AWS_ECS_CLUSTER} " +
+                        "--service ${AWS_ECS_SERVICE} " +
+                        "--task-definition ${AWS_ECS_FAMILY}:${BUILD_NUMBER} " +
+                        "--desired-count 1 " +
+                        "--region=${AWS_REGION}"
+                }
+            }
+        }
+    }
+}

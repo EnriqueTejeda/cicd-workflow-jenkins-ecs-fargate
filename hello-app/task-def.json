@@ -1,0 +1,49 @@
+{
+        "containerDefinitions": [
+                {
+                "name": "cicd-workflow-jenkins-ecs-fargate",
+                "image": "etejeda/hello-app-golang:%BUILD_NUMBER%",
+                "cpu": 256,
+                "memory": 512,
+                "memoryReservation": 128,
+                "portMappings": [
+                        {
+                        "containerPort": 8080,
+                        "hostPort": 8080,
+                        "protocol": "tcp"
+                        }
+                ],
+                "secrets": [
+                        {
+                        "name": "LITTLE_SECRET",
+                        "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT-ID>:secret:<SECRET-ID>:<SECRET-NAME>::"
+                        },
+                        {
+                        "name": "LITTLE_SECRET_CAT",
+                        "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT-ID>:secret:<SECRET-ID>:<SECRET-NAME>::"
+                        }
+                ],
+                "essential": true,
+                "environment": [
+                        {
+                        "name": "PORT",
+                        "value": "8080"
+                        }
+                ],
+                "mountPoints": [],
+                "volumesFrom": [],
+                "startTimeout": 30,
+                "stopTimeout": 30,
+                "readonlyRootFilesystem": false,
+                "ulimits": [],
+                "logConfiguration": {
+                                "logDriver": "awslogs",
+                                "options": {
+                                "awslogs-group": "dev-test-ecs",
+                                "awslogs-region": "us-east-1",
+                                "awslogs-stream-prefix": "sample-ecs"
+                                }
+                        }
+                }
+        ]
+}
